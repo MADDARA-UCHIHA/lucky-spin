@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lucky Spin</title>
+<style>
+  :root {
+    --bg: #0b0d14;
+    --panel: #151923;
+    --text: #e8ecf5;
+    --muted: #7a8398;
+    --accent: #7c5cff;
+    --accent2: #22d3ee;
+    --gold: #facc15;
+    --danger: #f87171;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  [hidden] { display: none !important; }
+  body {
+    min-height: 100vh;
+    background: radial-gradient(circle at top, #1a1f2e 0%, var(--bg) 60%);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 32px 16px calc(32px + env(safe-area-inset-bottom));
+  }
+  h1 {
+    font-size: clamp(28px, 5vw, 42px); letter-spacing: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    margin-bottom: 8px; text-align: center;
+  }
+  .subtitle { color: var(--muted); margin-bottom: 28px; font-size: 14px; text-align: center; }
+
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.7);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px; z-index: 10; backdrop-filter: blur(4px);
+  }
+  .modal {
+    background: var(--panel); border: 1px solid #2b3347; border-radius: 20px;
+    padding: 28px 24px; width: min(420px, 100%);
+    animation: pop .35s ease;
+  }
+  @keyframes pop { from { opacity: 0; transform: scale(.95); } to { opacity: 1; transform: none; } }
+  .modal h2 { font-size: 22px; margin-bottom: 14px; color: var(--gold); text-align: center; }
+  .modal ol { padding-left: 20px; line-height: 1.6; margin-bottom: 20px; }
+  .modal ol li + li { margin-top: 6px; }
+  .rule-highlight { color: var(--gold); font-weight: 700; }
+
+  .panel {
+    background: var(--panel); border: 1px solid #242a3a; border-radius: 20px;
+    padding: 24px; width: min(380px, 90vw);
+  }
+  label { display: block; color: var(--muted); font-size: 13px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+  textarea {
+    width: 100%; height: 160px; resize: vertical; padding: 12px;
+    background: #0f131c; color: var(--text); border: 1px solid #2b3347;
+    border-radius: 12px; font-size: 15px; font-family: inherit;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.5; }
+  .error { color: var(--danger); font-size: 13px; margin-top: 10px; min-height: 18px; }
+
+  .btn {
+    width: 100%; padding: 16px; border: none; border-radius: 14px;
+    font-size: 18px; font-weight: 700; color: #fff; cursor: pointer;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    box-shadow: 0 8px 24px rgba(124,92,255,.35);
+    transition: transform .15s, opacity .2s;
+  }
+  .btn:hover:not(:disabled) { transform: translateY(-2px); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+  .btn-ghost {
+    margin-top: 10px; background: transparent; border: 1px solid #2b3347;
+    box-shadow: none; font-size: 14px; padding: 10px; color: var(--muted);
+  }
+
+  .main { display: flex; flex-wrap: wrap; gap: 30px; justify-content: center; align-items: center; width: 100%; }
+  .wheel-area { position: relative; width: min(340px, 90vw); aspect-ratio: 1; }
+  .pointer {
+    position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    width: 0; height: 0; z-index: 3;
+    border-left: 16px solid transparent; border-right: 16px solid transparent;
+    border-top: 28px solid var(--gold);
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,.5));
+  }
+  .wheel {
+    position: relative; width: 100%; height: 100%; border-radius: 50%;
+    border: 6px solid #242a3a;
+    box-shadow: 0 0 40px rgba(124,92,255,.35), inset 0 0 20px rgba(0,0,0,.5);
+  overflow: hidden;
+  }
+  .label {
+    position: absolute; left: 50%; top: 50%; width: 50%; height: 0;
+    transform-origin: 0 0; pointer-events: none;
+  }
+  /* Ismlar ko'p bo'lganda ham o'qilishi oson bo'lishi va markazga tiqilib qolmasligi uchun */
+  .label span {
+    position: absolute; left: 78px; top: -50%;
+    max-width: 110px; overflow: hidden; text-overflow: ellipsis;
+    padding: 2px 5px; border-radius: 4px;
+    background: rgba(11,13,20,.82); color: #fff;
+    white-space: nowrap; font-weight: 700; text-align: center;
+    text-shadow: 0 1px 3px rgba(0,0,0,.9);
+  }
+  .hub {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+    width: 42px; height: 42px; border-radius: 50%; z-index: 2;
+    background: linear-gradient(135deg, #1e2433, #0f131c);
+    border: 3px solid var(--gold);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 800; color: var(--gold);
+  }
+  .step { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+  .next { font-size: 20px; font-weight: 700; margin: 6px 0 18px; min-height: 28px; }
+  .winner-box {
+    margin-top: 18px; padding: 16px; border-radius: 14px; text-align: center;
+    background: rgba(250,204,21,.08); border: 1px solid rgba(250,204,21,.35);
+    opacity: 0; transform: translateY(10px); transition: all .5s ease;
+  }
+  .winner-box.show { opacity: 1; transform: translateY(0); }
+  .w-label { font-size: 12px; color: var(--muted); }
+  .w-name { font-size: 26px; font-weight: 800; color: var(--gold); margin-top: 4px; }
+  .history { margin-top: 22px; }
+  .history h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .history ol { list-style: none; }
+  .history li {
+    display: flex; justify-content: space-between; padding: 8px 10px;
+    border-radius: 8px; background: #1b2130; margin-bottom: 6px; font-size: 14px;
+    animation: slideIn .4s ease;
+  }
+  .history li.near-winner { border-left: 3px solid var(--accent2); }
+  .history li.winner { border-left: 3px solid var(--gold); }
+  .history li .n { color: var(--muted); }
+  .result-status { margin-left: auto; padding-left: 8px; color: var(--muted); font-size: 12px; }
+  .history li.winner .result-status { color: var(--gold); font-weight: 700; }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+  .done { color: var(--muted); font-size: 14px; text-align: center; margin-top: 12px; }
+
+  @media (max-width: 600px) {
+    body { padding: 20px 12px calc(24px + env(safe-area-inset-bottom)); }
+    h1 { margin-bottom: 6px; }
+    .subtitle { margin-bottom: 20px; }
+    .panel { width: 100%; max-width: 420px; padding: 18px; }
+    .main { flex-direction: column; gap: 18px; }
+    .wheel-area { width: min(82vw, 340px); }
+    .main > .panel { width: min(100%, 420px); }
+    .label span { left: 22%; max-width: 34vw; }
+    .next { font-size: 18px; }
+    .w-name { font-size: 24px; overflow-wrap: anywhere; }
+    .btn { min-height: 48px; }
+    .modal { padding: 24px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="overlay" id="rulesOverlay">
+  <div class="modal">
+    <h2>O‘YIN QOIDALARI</h2>
+    <ol>
+      <li>Baraban 3 marta aylanadi.</li>
+      <li>Har bir aylanishdan keyin g‘olib aniqlanadi.</li>
+      <li><span class="rule-highlight">Oxirgi aylanishda yutqazganlar chiqib ketadi yoki g‘olib aniqlanadi.</span></li>
+    </ol>
+    <button class="btn" id="rulesOk">TUSHUNDIM</button>
+  </div>
+</div>
+
+<h1>LUCKY SPIN</h1>
+<p class="subtitle">Omadli baraban o‘yini</p>
+
+<div class="panel" id="setupSection" hidden>
+  <textarea id="namesInput" aria-label="Ishtirokchilar ismlari" placeholder="Ismlarni kiriting..."></textarea>
+  <div class="error" id="setupError"></div>
+  <button class="btn" id="startBtn" style="margin-top:10px">BOSHLASH</button>
+</div>
+
+<div class="main" id="gameSection" hidden>
+  <div class="wheel-area">
+    <div class="pointer"></div>
+    <div class="wheel" id="wheel"></div>
+    <div class="hub">★</div>
+  </div>
+
+  <div class="panel">
+    <div class="step" id="stepInfo"></div>
+    <div class="next" id="nextText">—</div>
+    <button class="btn" id="spinBtn">AYLANTIRISH</button>
+    <button class="btn btn-ghost" id="resetBtn">Qayta boshlash</button>
+
+    <div class="winner-box" id="winnerBox">
+      <div class="w-label">G‘olib</div>
+      <div class="w-name" id="winnerName"></div>
+    </div>
+
+    <div class="history">
+      <h3>Natijalar</h3>
+      <ol id="historyList"></ol>
+    </div>
+    <div class="done" id="doneMsg"></div>
+  </div>
+</div>
+
+<script>
+  const SPECIAL_WINNER_NAMES = new Set(["anas", "anasbek"]);
+  const COLORS = ["#7c5cff", "#22d3ee", "#f472b6", "#34d399", "#fb923c", "#60a5fa", "#a78bfa", "#f87171", "#fb7185", "#38bdf8"];
+  const SPIN_EXTRA_TURNS = 6;
+  const SPIN_DURATION = 5000;
+  const NEAR_OFFSET = 0.08;
+
+  const $ = id => document.getElementById(id);
+  const rulesOverlay = $("rulesOverlay"), rulesOk = $("rulesOk");
+  const setupSection = $("setupSection"), namesInput = $("namesInput");
+  const setupError = $("setupError"), startBtn = $("startBtn");
+  const gameSection = $("gameSection"), wheel = $("wheel");
+  const spinBtn = $("spinBtn"), resetBtn = $("resetBtn");
+  const stepInfo = $("stepInfo"), nextText = $("nextText");
+  const winnerBox = $("winnerBox"), winnerName = $("winnerName");
+  const historyList = $("historyList"), doneMsg = $("doneMsg");
+
+  let order = [];
+  let SEG = 0;
+  let plan = [];
+  let step = 0;
+  let spinning = false;
+  let currentRotation = 0;
+  let hasSpecialWinner = false;
+
+  rulesOk.addEventListener("click", () => {
+    rulesOverlay.hidden = true;
+    showSetup();
+  });
+
+  function showSetup() {
+    gameSection.hidden = true;
+    setupSection.hidden = false;
+    setupError.textContent = "";
+    namesInput.value = "";
+    namesInput.focus();
+  }
+
+  namesInput.addEventListener("keydown", event => {
+    if (event.key !== "," && event.key !== ";") return;
+    event.preventDefault();
+    namesInput.setRangeText("\n", namesInput.selectionStart, namesInput.selectionEnd, "end");
+  });
+
+  namesInput.addEventListener("paste", event => {
+    const pastedText = event.clipboardData?.getData("text");
+    if (!pastedText || !/[,;]/.test(pastedText)) return;
+    event.preventDefault();
+    namesInput.setRangeText(
+      pastedText.replace(/[,;]\s*/g, "\n"),
+      namesInput.selectionStart,
+      namesInput.selectionEnd,
+      "end"
+    );
+  });
+
+  startBtn.addEventListener("click", () => {
+    const names = namesInput.value.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+    const unique = [...new Set(names)];
+
+    if (unique.length !== names.length) return setupError.textContent = "Ismlar takrorlanmasligi kerak.";
+    if (unique.length < 3) return setupError.textContent = "Kamida 3 ta ism kiriting.";
+
+    order = unique;
+    SEG = 360 / order.length;
+
+    const specialWinner = unique.find(name => SPECIAL_WINNER_NAMES.has(name.toLowerCase()));
+    hasSpecialWinner = Boolean(specialWinner);
+
+    if (hasSpecialWinner) {
+      plan = [
+        { winner: unique[Math.floor(Math.random() * unique.length)], mode: "exact" },
+        { winner: unique[Math.floor(Math.random() * unique.length)], mode: "exact" },
+        { winner: specialWinner, mode: "exact" }
+      ];
+    } else {
+      // Anas yo'q bo'lsa - toza tasodifiy (random) rejim
+      plan = [
+        { winner: unique[Math.floor(Math.random() * unique.length)], mode: "exact" },
+        { winner: unique[Math.floor(Math.random() * unique.length)], mode: "exact" },
+        { winner: unique[Math.floor(Math.random() * unique.length)], mode: "exact" }
+      ];
+    }
+
+    buildWheel();
+    step = 0;
+    currentRotation = 0;
+    wheel.style.transition = "none";
+    wheel.style.transform = "rotate(0deg)";
+    historyList.innerHTML = "";
+    winnerBox.classList.remove("show");
+    doneMsg.textContent = "";
+
+    setupSection.hidden = true;
+    gameSection.hidden = false;
+    updateInfo();
+  });
+
+  function buildWheel() {
+    const stops = order.map((_, i) => {
+      const c = COLORS[i % COLORS.length];
+      return `${c} ${i * SEG}deg ${(i + 1) * SEG}deg`;
+    }).join(", ");
+    wheel.style.background = `conic-gradient(${stops})`;
+
+    wheel.querySelectorAll(".label").forEach(el => el.remove());
+    order.forEach((name, i) => {
+      const angle = i * SEG + SEG / 2;
+      const label = document.createElement("div");
+      label.className = "label";
+      label.style.transform = `rotate(${angle - 90}deg)`;
+      if (order.length > 18) return;
+      const span = document.createElement("span");
+      span.textContent = name;
+      span.title = name;
+      span.style.fontSize = `${Math.max(9, 15 - order.length / 5)}px`;
+      span.style.transform = `rotate(${90 - angle}deg)`;
+      label.appendChild(span);
+      wheel.appendChild(label);
+    });
+  }
+
+  function updateInfo() {
+    if (step < plan.length) {
+      stepInfo.textContent = `Aylanish ${step + 1} / ${plan.length}`;
+      nextText.textContent = step === plan.length - 1 ? "Oxirgi aylanish!" : "Baraban aylanmoqda";
+      spinBtn.disabled = false;
+      spinBtn.textContent = "AYLANTIRISH";
+    } else {
+      stepInfo.textContent = "Tugadi";
+      nextText.textContent = "";
+      spinBtn.disabled = true;
+      spinBtn.textContent = "TUGADI";
+      doneMsg.textContent = "O‘yin yakunlandi. Yangi o‘yin uchun \"Qayta boshlash\" ni bosing.";
+    }
+  }
+
+  function targetAngleFor(item) {
+    const idx = order.indexOf(item.winner);
+    if (item.mode === "near" && hasSpecialWinner) {
+      // Sal chetroqqa to'xtatib, haqiqiy tasodifiy taassurot qoldirish uchun
+      const jitter = (Math.random() - 0.5) * SEG * 0.4;
+      return idx * SEG + SEG / 2 + jitter;
+    }
+    // Aniq o'rtasida to'xtash
+    const jitter = hasSpecialWinner ? 0 : (Math.random() - 0.5) * SEG * 0.3;
+    return idx * SEG + SEG / 2 + jitter;
+  }
+
+  function spin() {
+    if (spinning || step >= plan.length) return;
+
+    spinning = true;
+    spinBtn.disabled = true;
+    winnerBox.classList.remove("show");
+    doneMsg.textContent = "";
+
+    let item;
+    if (!hasSpecialWinner) {
+      // Agar Anas yo'q bo'lsa har safar toza random tanlanadi
+      const randomWinner = order[Math.floor(Math.random() * order.length)];
+      item = { winner: randomWinner, mode: "exact" };
+    } else {
+      item = plan[step];
+    }
+
+    const targetAngle = targetAngleFor(item);
+
+    const desired = (360 - targetAngle + 360) % 360;
+    const current = ((currentRotation % 360) + 360) % 360;
+    const delta = (desired - current + 360) % 360;
+
+    currentRotation += SPIN_EXTRA_TURNS * 360 + delta;
+    wheel.style.transition = `transform ${SPIN_DURATION}ms cubic-bezier(.17,.67,.12,.99)`;
+    wheel.style.transform = `rotate(${currentRotation}deg)`;
+
+    setTimeout(() => {
+      spinning = false;
+      showWinner(item.winner);
+      step++;
+      updateInfo();
+    }, SPIN_DURATION + 100);
+  }
+
+  function showWinner(name) {
+    const isFinalWinner = step === plan.length - 1;
+    const resultLabel = isFinalWinner ? "G‘olib" : "G‘oliblikka yaqin";
+    winnerName.textContent = name;
+    winnerBox.querySelector(".w-label").textContent = resultLabel;
+    winnerBox.classList.add("show");
+
+    const li = document.createElement("li");
+    li.className = isFinalWinner ? "winner" : "near-winner";
+    const number = document.createElement("span");
+    number.className = "n";
+    number.textContent = `${step + 1}. `;
+    const winner = document.createElement("span");
+    winner.textContent = name;
+    const status = document.createElement("span");
+    status.className = "result-status";
+    status.textContent = resultLabel;
+    li.append(number, winner, status);
+    historyList.appendChild(li);
+  }
+
+  function reset() {
+    if (spinning) return;
+    wheel.style.transition = "none";
+    currentRotation = 0;
+    wheel.style.transform = "rotate(0deg)";
+    step = 0;
+    historyList.innerHTML = "";
+    winnerBox.classList.remove("show");
+    doneMsg.textContent = "";
+    showSetup();
+  }
+
+  spinBtn.addEventListener("click", spin);
+  resetBtn.addEventListener("click", reset);
+</script>
+</body>
+</html>
